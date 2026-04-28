@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FraudIntel — Real-Time Fraud Intelligence Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #070b14;
+      --surface: #0d1525;
+      --surface2: #111d32;
+      --border: #1c2f4f;
+      --accent: #00e5ff;
+      --accent2: #7c3aed;
+      --danger: #ff3d5a;
+      --warn: #ffaa00;
+      --ok: #00e676;
+      --text: #e2eaf8;
+      --muted: #5a7499;
+      --font-mono: 'Space Mono', monospace;
+      --font-sans: 'DM Sans', sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-sans); }
+
+    /* Scanline overlay */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,229,255,0.015) 2px, rgba(0,229,255,0.015) 4px);
+    }
+
+    .app { display: grid; grid-template-rows: 56px 1fr; height: 100vh; overflow: hidden; }
+
+    /* Header */
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 24px; background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: relative;
+    }
+    header::after {
+      content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    }
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-icon { width: 28px; height: 28px; position: relative; }
+    .logo-icon svg { width: 100%; height: 100%; }
+    .logo-text { font-family: var(--font-mono); font-size: 14px; font-weight: 700; color: var(--accent); letter-spacing: 0.05em; }
+    .logo-sub { font-size: 11px; color: var(--muted); margin-left: 4px; }
+    .header-status { display: flex; align-items: center; gap: 20px; }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 8px var(--ok); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .status-label { font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
+    .latency-badge { font-family: var(--font-mono); font-size: 11px; color: var(--accent); background: rgba(0,229,255,0.08); border: 1px solid rgba(0,229,255,0.2); border-radius: 4px; padding: 2px 8px; }
+
+    /* Layout */
+    .main { display: grid; grid-template-columns: 260px 1fr 340px; height: 100%; overflow: hidden; }
+
+    /* Sidebar */
+    aside { background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+    .aside-section { padding: 16px; border-bottom: 1px solid var(--border); }
+    .aside-section h3 { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em; color: var(--muted); text-transform: uppercase; margin-bottom: 12px; }
+    .metric-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .metric-label { font-size: 12px; color: var(--muted); }
+    .metric-value { font-family: var(--font-mono); font-size: 13px; font-weight: 700; }
+    .v-approve { color: var(--ok); }
+    .v-review { color: var(--warn); }
+    .v-block { color: var(--danger); }
+    .v-neutral { color: var(--accent); }
+    .nav { flex: 1; padding: 8px; overflow-y: auto; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; color: var(--muted); transition: all 0.15s; margin-bottom: 2px; }
+    .nav-item:hover { background: var(--surface2); color: var(--text); }
+    .nav-item.active { background: rgba(0,229,255,0.08); color: var(--accent); }
+    .nav-item .nav-icon { font-size: 14px; width: 18px; text-align: center; }
+
+    /* Center: Score Tester + Feed */
+    .center { display: flex; flex-direction: column; overflow: hidden; }
+    .center-top { padding: 20px; border-bottom: 1px solid var(--border); }
+    .panel-title { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+    .score-form { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    .field { display: flex; flex-direction: column; gap: 4px; }
+    .field label { font-size: 10px; color: var(--muted); font-family: var(--font-mono); text-transform: uppercase; }
+    .field input, .field select {
+      background: var(--bg); border: 1px solid var(--border); color: var(--text);
+      padding: 8px 10px; border-radius: 5px; font-family: var(--font-mono); font-size: 12px;
+      outline: none; transition: border-color 0.15s;
+    }
+    .field input:focus, .field select:focus { border-color: var(--accent); }
+    .field select option { background: var(--bg); }
+    .form-actions { display: flex; gap: 10px; margin-top: 12px; align-items: center; }
+    .btn-score {
+      background: linear-gradient(135deg, var(--accent), #0088bb);
+      color: #000; border: none; padding: 9px 20px; border-radius: 5px;
+      font-family: var(--font-mono); font-size: 12px; font-weight: 700; cursor: pointer;
+      transition: opacity 0.15s; letter-spacing: 0.05em;
+    }
+    .btn-score:hover { opacity: 0.9; }
+    .btn-score:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-random { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); padding: 9px 16px; border-radius: 5px; font-size: 12px; cursor: pointer; font-family: var(--font-mono); }
+    .btn-random:hover { color: var(--text); border-color: var(--muted); }
+
+    /* Result panel */
+    .result-panel {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 14px; margin-top: 12px;
+      display: none;
+    }
+    .result-panel.visible { display: block; }
+    .result-decision {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-family: var(--font-mono); font-size: 18px; font-weight: 700;
+      margin-bottom: 12px;
+    }
+    .decision-APPROVE { color: var(--ok); }
+    .decision-REVIEW { color: var(--warn); }
+    .decision-BLOCK { color: var(--danger); }
+    .result-scores { display: flex; gap: 20px; margin-bottom: 12px; }
+    .score-item { text-align: center; }
+    .score-item .val { font-family: var(--font-mono); font-size: 20px; font-weight: 700; }
+    .score-item .lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; }
+    .risk-bar { height: 6px; background: var(--border); border-radius: 3px; margin: 8px 0; overflow: hidden; }
+    .risk-bar-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+    .explanations { margin-top: 10px; }
+    .explanation-item { font-size: 11px; color: var(--muted); padding: 3px 0; display: flex; align-items: flex-start; gap: 6px; }
+    .explanation-item::before { content: '▸'; color: var(--accent); flex-shrink: 0; margin-top: 1px; }
+    .processing-time { font-family: var(--font-mono); font-size: 10px; color: var(--muted); margin-top: 8px; }
+
+    /* Live Feed */
+    .feed-container { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+    .feed-header { padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+    .feed-list { flex: 1; overflow-y: auto; padding: 8px; }
+    .feed-list::-webkit-scrollbar { width: 4px; }
+    .feed-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .feed-item {
+      display: grid; grid-template-columns: 70px 1fr 70px 40px;
+      align-items: center; gap: 8px;
+      padding: 8px 12px; border-radius: 5px;
+      border: 1px solid transparent;
+      margin-bottom: 3px; font-size: 12px;
+      animation: slideIn 0.3s ease;
+    }
+    @keyframes slideIn { from { opacity:0; transform:translateX(-10px); } to { opacity:1; transform:translateX(0); } }
+    .feed-item:hover { background: var(--surface2); border-color: var(--border); }
+    .feed-badge {
+      font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+      padding: 2px 7px; border-radius: 3px; text-align: center;
+    }
+    .badge-APPROVE { background: rgba(0,230,118,0.12); color: var(--ok); }
+    .badge-REVIEW  { background: rgba(255,170,0,0.12);  color: var(--warn); }
+    .badge-BLOCK   { background: rgba(255,61,90,0.15);  color: var(--danger); }
+    .feed-tx-id { font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
+    .feed-risk { font-family: var(--font-mono); font-size: 12px; }
+
+    /* Right: Case Manager */
+    .right-panel { background: var(--surface); border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+    .right-header { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .right-header h2 { font-family: var(--font-mono); font-size: 12px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; }
+    .case-list { flex: 1; overflow-y: auto; padding: 8px; }
+    .case-card {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 6px; padding: 10px 12px; margin-bottom: 6px;
+      cursor: pointer; transition: border-color 0.15s;
+    }
+    .case-card:hover { border-color: var(--accent); }
+    .case-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .case-id { font-family: var(--font-mono); font-size: 11px; color: var(--accent); }
+    .case-status { font-size: 10px; font-family: var(--font-mono); padding: 1px 6px; border-radius: 3px; }
+    .status-OPEN { background: rgba(255,61,90,0.15); color: var(--danger); }
+    .status-IN_REVIEW { background: rgba(255,170,0,0.15); color: var(--warn); }
+    .status-CLOSED { background: rgba(0,230,118,0.1); color: var(--ok); }
+    .case-meta { font-size: 11px; color: var(--muted); }
+    .case-score { font-family: var(--font-mono); font-size: 13px; font-weight: 700; }
+    .case-actions { display: flex; gap: 6px; margin-top: 8px; }
+    .action-btn { flex: 1; padding: 5px; border: 1px solid var(--border); background: var(--bg); color: var(--muted); border-radius: 4px; font-size: 10px; cursor: pointer; font-family: var(--font-mono); transition: all 0.15s; text-align: center; }
+    .action-btn:hover { color: var(--text); border-color: var(--muted); }
+    .action-btn.approve:hover { border-color: var(--ok); color: var(--ok); }
+    .action-btn.block:hover { border-color: var(--danger); color: var(--danger); }
+
+    /* Score Gauge */
+    .gauge-wrap { display: flex; align-items: center; justify-content: center; padding: 10px 0; }
+    svg.gauge { overflow: visible; }
+
+    /* Toast */
+    .toast {
+      position: fixed; bottom: 20px; right: 20px; z-index: 10000;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 6px; padding: 10px 16px; font-size: 12px;
+      font-family: var(--font-mono); opacity: 0; pointer-events: none;
+      transition: opacity 0.3s; max-width: 300px;
+    }
+    .toast.show { opacity: 1; }
+
+    /* Spinner */
+    .spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; display: none; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner.active { display: inline-block; }
+
+    /* Responsive tweaks */
+    @media (max-width: 1100px) {
+      .main { grid-template-columns: 220px 1fr 280px; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <polygon points="14,2 26,22 2,22" fill="none" stroke="#00e5ff" stroke-width="1.5"/>
+          <circle cx="14" cy="15" r="4" fill="none" stroke="#00e5ff" stroke-width="1.5"/>
+          <line x1="14" y1="2" x2="14" y2="11" stroke="#00e5ff" stroke-width="1" stroke-dasharray="2,2"/>
+        </svg>
+      </div>
+      <span class="logo-text">FRAUDINTEL</span>
+      <span class="logo-sub">by Santhosh</span>
+    </div>
+    <div class="header-status">
+      <div class="status-dot"></div>
+      <span class="status-label">LIVE</span>
+      <span class="latency-badge" id="avg-latency">— ms</span>
+      <span class="latency-badge" id="tx-count">0 scored</span>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <div class="main">
+
+    <!-- Sidebar -->
+    <aside>
+      <div class="aside-section">
+        <h3>Decision Summary</h3>
+        <div class="metric-row">
+          <span class="metric-label">✅ Approved</span>
+          <span class="metric-value v-approve" id="m-approve">0</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">⚠️ Review</span>
+          <span class="metric-value v-review" id="m-review">0</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">🚨 Blocked</span>
+          <span class="metric-value v-block" id="m-block">0</span>
+        </div>
+        <div class="metric-row" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+          <span class="metric-label">Avg Risk</span>
+          <span class="metric-value v-neutral" id="m-avg-risk">—</span>
+        </div>
+      </div>
+
+      <div class="aside-section">
+        <h3>System Status</h3>
+        <div class="metric-row"><span class="metric-label">ML Model</span><span class="metric-value" style="color:var(--ok);font-size:11px">● LOADED</span></div>
+        <div class="metric-row"><span class="metric-label">Rules Engine</span><span class="metric-value" style="color:var(--ok);font-size:11px">● ACTIVE</span></div>
+        <div class="metric-row"><span class="metric-label">Identity Graph</span><span class="metric-value" style="color:var(--ok);font-size:11px">● ONLINE</span></div>
+        <div class="metric-row"><span class="metric-label">Stream</span><span class="metric-value" style="color:var(--warn);font-size:11px">● MOCK</span></div>
+      </div>
+
+      <nav class="nav">
+        <div class="nav-item active" onclick="showPanel('scorer')">
+          <span class="nav-icon">⚡</span> Transaction Scorer
+        </div>
+        <div class="nav-item" onclick="showPanel('feed')">
+          <span class="nav-icon">📡</span> Live Feed
+        </div>
+        <div class="nav-item" onclick="showPanel('cases')">
+          <span class="nav-icon">🗂</span> Case Manager
+        </div>
+        <div class="nav-item" onclick="showPanel('graph')">
+          <span class="nav-icon">🕸</span> Identity Graph
+        </div>
+        <div class="nav-item" onclick="openDocs()">
+          <span class="nav-icon">📖</span> API Docs
+        </div>
+      </nav>
+    </aside>
+
+    <!-- Center -->
+    <div class="center">
+      <div class="center-top">
+        <div class="panel-title">🎯 Real-Time Transaction Scorer</div>
+
+        <div class="score-form" id="form-scorer">
+          <div class="field">
+            <label>User ID</label>
+            <input type="text" id="f-user" value="user_0042" placeholder="user_xxxx">
+          </div>
+          <div class="field">
+            <label>Amount (USD)</label>
+            <input type="number" id="f-amount" value="250.00" step="0.01" min="0.01">
+          </div>
+          <div class="field">
+            <label>Country</label>
+            <select id="f-country">
+              <option value="US">🇺🇸 US</option>
+              <option value="CA">🇨🇦 CA</option>
+              <option value="GB">🇬🇧 GB</option>
+              <option value="NG">🇳🇬 NG (High Risk)</option>
+              <option value="RU">🇷🇺 RU (High Risk)</option>
+              <option value="CN">🇨🇳 CN (High Risk)</option>
+              <option value="BR">🇧🇷 BR</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Merchant Category</label>
+            <select id="f-merchant-cat">
+              <option value="retail">Retail</option>
+              <option value="grocery">Grocery</option>
+              <option value="restaurant">Restaurant</option>
+              <option value="electronics">Electronics</option>
+              <option value="crypto">Crypto ⚠️</option>
+              <option value="gambling">Gambling ⚠️</option>
+              <option value="wire_transfer">Wire Transfer ⚠️</option>
+              <option value="travel">Travel</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>IP Address</label>
+            <input type="text" id="f-ip" value="203.0.113.42">
+          </div>
+          <div class="field">
+            <label>Device ID</label>
+            <input type="text" id="f-device" value="dev_a1b2c3">
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button class="btn-score" id="btn-score" onclick="scoreTransaction()">
+            ⚡ SCORE TRANSACTION
+          </button>
+          <button class="btn-random" onclick="loadRandomScenario()">🎲 Random</button>
+          <div class="spinner" id="spinner"></div>
+          <span id="score-error" style="font-size:11px;color:var(--danger);"></span>
+        </div>
+
+        <div class="result-panel" id="result-panel">
+          <div class="result-decision" id="result-decision">—</div>
+          <div class="result-scores">
+            <div class="score-item">
+              <div class="val" id="r-risk">—</div>
+              <div class="lbl">Risk Score</div>
+            </div>
+            <div class="score-item">
+              <div class="val" id="r-ml" style="font-size:14px">—</div>
+              <div class="lbl">ML Score</div>
+            </div>
+            <div class="score-item">
+              <div class="val" id="r-rule" style="font-size:14px">—</div>
+              <div class="lbl">Rule Score</div>
+            </div>
+            <div class="score-item">
+              <div class="val" id="r-id" style="font-size:14px">—</div>
+              <div class="lbl">Identity Risk</div>
+            </div>
+            <div class="score-item">
+              <div class="val" id="r-time" style="font-size:14px;color:var(--accent)">—</div>
+              <div class="lbl">Latency (ms)</div>
+            </div>
+          </div>
+          <div class="risk-bar"><div class="risk-bar-fill" id="risk-bar-fill"></div></div>
+          <div class="explanations" id="explanations"></div>
+        </div>
+      </div>
+
+      <!-- Live Feed -->
+      <div class="feed-container">
+        <div class="feed-header">
+          <span style="font-family:var(--font-mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">📡 Live Transaction Feed</span>
+          <button class="btn-random" onclick="clearFeed()" style="padding:4px 10px;font-size:10px">Clear</button>
+        </div>
+        <div class="feed-list" id="feed-list">
+          <div style="text-align:center;color:var(--muted);font-size:12px;padding:20px;font-family:var(--font-mono)">
+            Score a transaction to see the feed...
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Cases -->
+    <div class="right-panel">
+      <div class="right-header">
+        <h2>🗂 Case Queue</h2>
+        <span id="case-count" style="font-family:var(--font-mono);font-size:11px;color:var(--muted)">0 cases</span>
+      </div>
+      <div class="case-list" id="case-list">
+        <div style="text-align:center;color:var(--muted);font-size:12px;padding:20px;font-family:var(--font-mono)">
+          Cases appear when transactions<br>are flagged for REVIEW or BLOCK
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = window.location.origin + '/api/v1';
+let stats = { approve: 0, review: 0, block: 0, total: 0, totalRisk: 0 };
+let cases = [];
+let latencies = [];
+
+const SCENARIOS = [
+  { label: "Normal Purchase", user: "user_0042", amount: 45.99, country: "US", cat: "grocery", ip: "203.0.113.42", device: "dev_a1b2c3" },
+  { label: "🚨 Fraud Signal", user: "user_new1", amount: 4500.00, country: "NG", cat: "crypto", ip: "10.0.0.55", device: "dev_unknown_99" },
+  { label: "⚠️ Suspicious", user: "user_0099", amount: 1800.00, country: "RU", cat: "wire_transfer", ip: "172.16.0.10", device: "dev_new_xyz" },
+  { label: "Normal Online", user: "user_0150", amount: 129.99, country: "GB", cat: "retail", ip: "185.12.55.3", device: "dev_b7c8" },
+  { label: "High-Value Travel", user: "user_0075", amount: 2999.00, country: "FR", cat: "travel", ip: "91.123.45.6", device: "dev_c9d0" },
+  { label: "🚨 Account Takeover", user: "user_new2", amount: 7500.00, country: "CN", cat: "electronics", ip: "10.10.10.1", device: "dev_fresh_1" },
+];
+
+function loadRandomScenario() {
+  const s = SCENARIOS[Math.floor(Math.random() * SCENARIOS.length)];
+  document.getElementById('f-user').value = s.user;
+  document.getElementById('f-amount').value = s.amount;
+  document.getElementById('f-country').value = s.country;
+  document.getElementById('f-merchant-cat').value = s.cat;
+  document.getElementById('f-ip').value = s.ip;
+  document.getElementById('f-device').value = s.device;
+  showToast(`Loaded: ${s.label}`);
+}
+
+async function scoreTransaction() {
+  const btn = document.getElementById('btn-score');
+  const spinner = document.getElementById('spinner');
+  const errEl = document.getElementById('score-error');
+  
+  btn.disabled = true;
+  spinner.classList.add('active');
+  errEl.textContent = '';
+  
+  const payload = {
+    user_id: document.getElementById('f-user').value || 'user_demo',
+    amount: parseFloat(document.getElementById('f-amount').value) || 100,
+    currency: 'USD',
+    merchant_id: 'merch_demo',
+    merchant_category: document.getElementById('f-merchant-cat').value,
+    country: document.getElementById('f-country').value,
+    ip_address: document.getElementById('f-ip').value || '1.2.3.4',
+    device_id: document.getElementById('f-device').value || 'dev_demo',
+    device_type: 'mobile',
+    channel: 'online',
+  };
+  
+  try {
+    const t0 = performance.now();
+    const resp = await fetch(`${API}/fraud/score`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const elapsed = performance.now() - t0;
+    
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    
+    displayResult(data, elapsed);
+    updateStats(data);
+    addToFeed(data, payload);
+    
+    if (data.decision !== 'APPROVE') {
+      addCase(data, payload);
+    }
+    
+    latencies.push(elapsed);
+    if (latencies.length > 20) latencies.shift();
+    const avgL = latencies.reduce((a,b)=>a+b,0)/latencies.length;
+    document.getElementById('avg-latency').textContent = `${avgL.toFixed(0)}ms avg`;
+    
+  } catch (e) {
+    errEl.textContent = `Error: ${e.message}. Is the API running?`;
+    // Show demo result
+    displayDemoResult();
+  } finally {
+    btn.disabled = false;
+    spinner.classList.remove('active');
+  }
+}
+
+function displayResult(data, clientElapsed) {
+  const panel = document.getElementById('result-panel');
+  panel.classList.add('visible');
+  
+  const decisionEl = document.getElementById('result-decision');
+  const icons = { APPROVE: '✅', REVIEW: '⚠️', BLOCK: '🚨' };
+  decisionEl.className = `result-decision decision-${data.decision}`;
+  decisionEl.textContent = `${icons[data.decision]} ${data.decision}`;
+  
+  document.getElementById('r-risk').textContent = data.risk_score?.toFixed(1) || '—';
+  document.getElementById('r-risk').style.color = riskColor(data.risk_score);
+  document.getElementById('r-ml').textContent = data.ml_score?.toFixed(3) || '—';
+  document.getElementById('r-rule').textContent = data.rule_score?.toFixed(1) || '—';
+  document.getElementById('r-id').textContent = data.identity_risk?.toFixed(3) || '—';
+  document.getElementById('r-time').textContent = 
+    data.processing_time_ms ? `${data.processing_time_ms.toFixed(1)}` : `${clientElapsed?.toFixed(0)}`;
+  
+  // Risk bar
+  const pct = ((data.risk_score || 0) / 10) * 100;
+  const fill = document.getElementById('risk-bar-fill');
+  fill.style.width = pct + '%';
+  fill.style.background = riskColor(data.risk_score);
+  
+  // Explanations
+  const expEl = document.getElementById('explanations');
+  if (data.explanation && data.explanation.length > 0) {
+    expEl.innerHTML = data.explanation.map(e =>
+      `<div class="explanation-item">${e}</div>`
+    ).join('');
+  } else {
+    expEl.innerHTML = '<div class="explanation-item">No significant fraud signals detected.</div>';
+  }
+}
+
+function displayDemoResult() {
+  // Demo result when API is offline
+  const demo = {
+    decision: 'REVIEW',
+    risk_score: 5.2,
+    ml_score: 0.48,
+    rule_score: 4.5,
+    identity_risk: 0.31,
+    explanation: ['[DEMO] API not connected — showing demo result', '[RULE] Start the backend: uvicorn backend.main:app', '[ML] Visit /api/docs for API documentation'],
+  };
+  displayResult(demo, 0);
+  updateStats(demo);
+  addToFeed(demo, { user_id: 'demo', amount: 0 });
+}
+
+function riskColor(score) {
+  if (score < 3.5) return 'var(--ok)';
+  if (score < 6.5) return 'var(--warn)';
+  return 'var(--danger)';
+}
+
+function updateStats(data) {
+  stats.total++;
+  stats.totalRisk += data.risk_score || 0;
+  if (data.decision === 'APPROVE') stats.approve++;
+  else if (data.decision === 'REVIEW') stats.review++;
+  else if (data.decision === 'BLOCK') stats.block++;
+  
+  document.getElementById('m-approve').textContent = stats.approve;
+  document.getElementById('m-review').textContent = stats.review;
+  document.getElementById('m-block').textContent = stats.block;
+  document.getElementById('m-avg-risk').textContent = (stats.totalRisk / stats.total).toFixed(1);
+  document.getElementById('tx-count').textContent = `${stats.total} scored`;
+}
+
+function addToFeed(data, payload) {
+  const feed = document.getElementById('feed-list');
+  const existingEmpty = feed.querySelector('div[style*="text-align"]');
+  if (existingEmpty) existingEmpty.remove();
+  
+  const item = document.createElement('div');
+  item.className = 'feed-item';
+  const icons = { APPROVE: '✅', REVIEW: '⚠️', BLOCK: '🚨' };
+  item.innerHTML = `
+    <span class="feed-badge badge-${data.decision}">${icons[data.decision]} ${data.decision}</span>
+    <span class="feed-tx-id">${(data.transaction_id || 'demo').substring(0,12)}… <span style="color:var(--muted);font-size:10px">$${payload.amount?.toFixed(0)||0}</span></span>
+    <span class="feed-risk" style="color:${riskColor(data.risk_score)}">${data.risk_score?.toFixed(1)||'—'}/10</span>
+    <span style="font-size:10px;color:var(--muted)">${new Date().toLocaleTimeString('en',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</span>
+  `;
+  feed.insertBefore(item, feed.firstChild);
+  
+  // Keep max 50 items
+  while (feed.children.length > 50) feed.removeChild(feed.lastChild);
+}
+
+let caseCounter = 1;
+function addCase(data, payload) {
+  const caseId = `CASE-${String(caseCounter++).padStart(4,'0')}`;
+  const caseObj = { ...data, caseId, payload, status: 'OPEN', createdAt: Date.now() };
+  cases.unshift(caseObj);
+  
+  const list = document.getElementById('case-list');
+  const existingEmpty = list.querySelector('div[style*="text-align"]');
+  if (existingEmpty) existingEmpty.remove();
+  
+  const card = document.createElement('div');
+  card.className = 'case-card';
+  card.id = `case-${caseId}`;
+  card.innerHTML = `
+    <div class="case-card-top">
+      <span class="case-id">${caseId}</span>
+      <span class="case-status status-OPEN">OPEN</span>
+    </div>
+    <div class="case-meta" style="margin-bottom:4px">
+      User: ${payload.user_id || '?'} · $${payload.amount?.toFixed(0)||0} · ${payload.country||'?'}
+    </div>
+    <div class="case-meta">
+      <span class="case-score" style="color:${riskColor(data.risk_score)}">${data.risk_score?.toFixed(1)||'—'}/10</span>
+      · ${data.decision}
+    </div>
+    <div class="case-meta" style="margin-top:4px;font-size:10px">${(data.explanation||[])[0]||''}</div>
+    <div class="case-actions">
+      <div class="action-btn approve" onclick="resolveCase('${caseId}', 'APPROVE', this)">✅ APPROVE</div>
+      <div class="action-btn" onclick="resolveCase('${caseId}', 'REVIEW', this)">👁 ESCALATE</div>
+      <div class="action-btn block" onclick="resolveCase('${caseId}', 'BLOCK', this)">🚨 CONFIRM BLOCK</div>
+    </div>
+  `;
+  list.insertBefore(card, list.firstChild);
+  document.getElementById('case-count').textContent = `${cases.length} cases`;
+  showToast(`New case: ${caseId} (${data.decision})`);
+}
+
+function resolveCase(caseId, action, btn) {
+  const card = document.getElementById(`case-${caseId}`);
+  const statusEl = card.querySelector('.case-status');
+  statusEl.className = `case-status status-${action === 'APPROVE' ? 'CLOSED' : action === 'BLOCK' ? 'OPEN' : 'IN_REVIEW'}`;
+  statusEl.textContent = action === 'APPROVE' ? 'CLOSED' : action === 'BLOCK' ? 'CONFIRMED BLOCK' : 'ESCALATED';
+  card.querySelector('.case-actions').innerHTML = `<div style="font-size:10px;color:var(--muted);font-family:var(--font-mono)">Resolved by analyst · ${new Date().toLocaleTimeString()}</div>`;
+  showToast(`Case ${caseId}: ${action}`);
+}
+
+function clearFeed() {
+  document.getElementById('feed-list').innerHTML = '<div style="text-align:center;color:var(--muted);font-size:12px;padding:20px;font-family:var(--font-mono)">Feed cleared</div>';
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function openDocs() {
+  window.open('/api/docs', '_blank');
+}
+
+function showPanel(name) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  event.target.closest('.nav-item').classList.add('active');
+}
+
+// Auto-demo: load a random scenario on page load
+window.addEventListener('load', () => {
+  loadRandomScenario();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,162 @@
+{
+  "info": {
+    "name": "FraudIntel API",
+    "description": "santhosh-fraudintel-real-time-platform — Complete API Collection",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8000", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "🏥 Health & Status",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": { "method": "GET", "url": "{{base_url}}/health" }
+        },
+        {
+          "name": "System Status",
+          "request": { "method": "GET", "url": "{{base_url}}/api/v1/status" }
+        }
+      ]
+    },
+    {
+      "name": "⚡ Fraud Scoring",
+      "item": [
+        {
+          "name": "Score Transaction — Normal",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/fraud/score",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"user_0042\",\n  \"amount\": 120.50,\n  \"currency\": \"USD\",\n  \"merchant_id\": \"merch_0010\",\n  \"merchant_category\": \"grocery\",\n  \"country\": \"US\",\n  \"ip_address\": \"203.0.113.42\",\n  \"device_id\": \"dev_a1b2c3\",\n  \"device_type\": \"mobile\",\n  \"channel\": \"online\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Score Transaction — High Risk",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/fraud/score",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"user_new_001\",\n  \"amount\": 4800.00,\n  \"currency\": \"USD\",\n  \"merchant_id\": \"merch_crypto_01\",\n  \"merchant_category\": \"crypto\",\n  \"country\": \"NG\",\n  \"ip_address\": \"10.0.0.55\",\n  \"device_id\": \"dev_unknown_xyz\",\n  \"device_type\": \"unknown\",\n  \"channel\": \"online\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Score Transaction — Account Takeover",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/fraud/score",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"user_new_002\",\n  \"amount\": 7500.00,\n  \"currency\": \"USD\",\n  \"merchant_id\": \"merch_0055\",\n  \"merchant_category\": \"electronics\",\n  \"country\": \"RU\",\n  \"ip_address\": \"172.16.0.1\",\n  \"device_id\": \"dev_brand_new\",\n  \"device_type\": \"mobile\",\n  \"channel\": \"online\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Batch Score (3 transactions)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/fraud/batch",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactions\": [\n    {\n      \"user_id\": \"user_0010\", \"amount\": 89.99, \"currency\": \"USD\",\n      \"merchant_id\": \"merch_0001\", \"merchant_category\": \"retail\",\n      \"country\": \"US\", \"ip_address\": \"1.2.3.4\",\n      \"device_id\": \"dev_001\", \"channel\": \"online\"\n    },\n    {\n      \"user_id\": \"user_0020\", \"amount\": 3200.00, \"currency\": \"USD\",\n      \"merchant_id\": \"merch_0002\", \"merchant_category\": \"wire_transfer\",\n      \"country\": \"CN\", \"ip_address\": \"10.0.1.1\",\n      \"device_id\": \"dev_new_abc\", \"channel\": \"online\"\n    },\n    {\n      \"user_id\": \"user_0030\", \"amount\": 24.50, \"currency\": \"USD\",\n      \"merchant_id\": \"merch_0003\", \"merchant_category\": \"restaurant\",\n      \"country\": \"CA\", \"ip_address\": \"203.0.1.99\",\n      \"device_id\": \"dev_003\", \"channel\": \"pos\"\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Audit Log",
+          "request": { "method": "GET", "url": "{{base_url}}/api/v1/fraud/audit?limit=20" }
+        }
+      ]
+    },
+    {
+      "name": "🗂 Case Management",
+      "item": [
+        {
+          "name": "List All Cases",
+          "request": { "method": "GET", "url": "{{base_url}}/api/v1/cases/" }
+        },
+        {
+          "name": "List OPEN Cases",
+          "request": { "method": "GET", "url": "{{base_url}}/api/v1/cases/?status=OPEN" }
+        },
+        {
+          "name": "Create Case",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/cases/",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transaction_id\": \"tx-demo-001\",\n  \"user_id\": \"user_0042\",\n  \"risk_score\": 7.8,\n  \"decision\": \"REVIEW\",\n  \"notes\": \"High-risk transaction flagged for analyst review\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Update Case (Analyst Decision)",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/api/v1/cases/CASE-XXXXXXXX",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"CLOSED\",\n  \"analyst_id\": \"analyst_001\",\n  \"decision_override\": \"BLOCK\",\n  \"notes\": \"Confirmed fraud after manual review. Card blocked.\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Case Stats",
+          "request": { "method": "GET", "url": "{{base_url}}/api/v1/cases/stats/summary" }
+        }
+      ]
+    },
+    {
+      "name": "🕸 Identity Graph",
+      "item": [
+        {
+          "name": "Analyze Identity",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/identity/analyze",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"user_0042\",\n  \"device_id\": \"dev_a1b2c3\",\n  \"ip_address\": \"203.0.113.42\",\n  \"action\": \"login\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get User Identity Graph",
+          "request": { "method": "GET", "url": "{{base_url}}/api/v1/identity/graph/user_0042" }
+        },
+        {
+          "name": "Graph Stats",
+          "request": { "method": "GET", "url": "{{base_url}}/api/v1/identity/stats" }
+        }
+      ]
+    },
+    {
+      "name": "📊 Analytics",
+      "item": [
+        {
+          "name": "Dashboard Data",
+          "request": { "method": "GET", "url": "{{base_url}}/api/v1/analytics/dashboard" }
+        },
+        {
+          "name": "Live Feed",
+          "request": { "method": "GET", "url": "{{base_url}}/api/v1/analytics/live-feed?limit=20" }
+        }
+      ]
+    }
+  ]
+}
