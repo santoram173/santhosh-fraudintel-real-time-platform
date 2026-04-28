@@ -1,4 +1,4 @@
-# 🛡️ FraudIntel — Real-Time Fraud Intelligence Platform
+# 🛡️ FraudIntel  Real-Time Fraud Intelligence Platform
 
 **`santhosh-fraudintel-real-time-platform`**
 
